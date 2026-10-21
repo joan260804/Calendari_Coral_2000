@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calendari del grup</title>
+<style>
+:root{--ink:#1d2433;--mute:#6b7385;--line:#dde1ea;--bg:#f6f7fa;--card:#fff;--blue:#2f6fdb;--bluebg:#dce8fd;--red:#c9302c;--redbg:#fde3e2}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:var(--bg)}
+button,input,textarea{font:inherit}
+.hidden{display:none!important}
+#login{max-width:340px;margin:18vh auto;padding:28px;background:var(--card);border:1px solid var(--line);border-radius:10px}
+#login h1{margin:0 0 6px;font-size:22px}
+#login p{margin:0 0 16px;color:var(--mute)}
+input,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+input:focus-visible,button:focus-visible,textarea:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+label{display:block;margin:10px 0 3px;font-size:13px;color:var(--mute)}
+.btn{padding:9px 14px;border:0;border-radius:6px;background:var(--blue);color:#fff;cursor:pointer}
+.btn.sec{background:#e9ecf3;color:var(--ink)}
+.btn.del{background:var(--redbg);color:var(--red)}
+#err{color:var(--red);min-height:20px;margin:8px 0 0;font-size:13px}
+header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header .sp{flex:1}
+header b{font-size:17px}
+.who{color:var(--mute);font-size:13px}
+#nav{display:flex;align-items:center;gap:8px;padding:12px 14px}
+#nav h2{margin:0;flex:1;text-align:center;font-size:19px;text-transform:capitalize}
+#grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);margin:0 8px 20px;border:1px solid var(--line)}
+.dh{background:var(--card);text-align:center;padding:6px 0;font-size:12px;color:var(--mute)}
+.d{background:var(--card);min-height:92px;padding:3px;cursor:pointer;overflow:hidden}
+.d.out{background:#fafbfc;color:#a9afbd}
+.n{font-size:13px;display:inline-block;min-width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%}
+.d.today .n{background:var(--blue);color:#fff}
+.d.hol .n,.d.sun .n{color:var(--red)}
+.d.today.hol .n{color:#fff;background:var(--red)}
+.hn{display:block;font-size:10.5px;color:var(--red);background:var(--redbg);border-radius:3px;padding:0 3px;margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev{display:block;font-size:11px;background:var(--bluebg);color:#1c4a9c;border-radius:3px;padding:0 3px;margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.more{font-size:11px;color:var(--mute)}
+#modal{position:fixed;inset:0;background:rgba(20,26,40,.5);display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;overflow:auto}
+.box{background:var(--card);border-radius:10px;width:100%;max-width:460px;padding:18px}
+.box h3{margin:0 0 10px;font-size:18px}
+.item{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:6px;padding:9px 11px;margin:8px 0}
+.item.h{border-left-color:var(--red);background:var(--redbg)}
+.item small{color:var(--mute);display:block}
+.item a{color:var(--blue)}
+.row{display:flex;gap:8px}.row>div{flex:1}
+.acts{display:flex;gap:8px;margin-top:14px;justify-content:flex-end}
+@media(max-width:560px){.d{min-height:70px}.ev,.hn{font-size:9.5px}}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h1>Calendari del grup</h1>
+  <p>Entra amb el teu número de telèfon.</p>
+  <input id="tel" type="tel" inputmode="numeric" placeholder="612345678" autocomplete="tel">
+  <p id="err"></p>
+  <button class="btn" id="enter" style="width:100%">Entrar</button>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <b>Calendari del grup</b><span class="sp"></span>
+    <span class="who" id="who"></span>
+    <button class="btn sec" id="out">Sortir</button>
+  </header>
+  <div id="nav">
+    <button class="btn sec" id="prev" aria-label="Mes anterior">‹</button>
+    <h2 id="title"></h2>
+    <button class="btn sec" id="next" aria-label="Mes següent">›</button>
+  </div>
+  <div id="grid"></div>
+</div>
+
+<div id="modal" class="hidden"><div class="box" id="box"></div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+// ====== 1. Enganxa aquí la configuració del teu projecte Firebase ======
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCEMlMtUXIHF4u7PI3lQnpWswQXDPMvwrw",
+  authDomain: "calendari-coral-2000.firebaseapp.com",
+  projectId: "calendari-coral-2000",
+  storageBucket: "calendari-coral-2000.firebasestorage.app",
+  messagingSenderId: "651611797227",
+  appId: "1:651611797227:web:bb49672ad63e335096b0ae"
+};
+// =======================================================================
+
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.firestore();
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, '0');
+const key = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const MONTHS = ['gener','febrer','març','abril','maig','juny','juliol','agost','setembre','octubre','novembre','desembre'];
+
+let me = null, events = [], cur = new Date(), unsub = null;
+cur.setDate(1);
+
+// ---------- Festius de Catalunya (Setmana Santa calculada automàticament) ----------
+function easter(y) {
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4,
+    f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30,
+    i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7,
+    m = Math.floor((a + 11 * h + 22 * l) / 451), mo = Math.floor((h + l - 7 * m + 114) / 31),
+    da = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(y, mo - 1, da);
+}
+const holCache = {};
+function holidays(y) {
+  if (holCache[y]) return holCache[y];
+  const h = {}, add = (m, d, n) => h[key(y, m - 1, d)] = n;
+  add(1,1,'Cap d\'Any'); add(1,6,'Reis'); add(4,23,'Sant Jordi'); add(5,1,'Dia del Treball');
+  add(6,24,'Sant Joan'); add(8,15,'L\'Assumpció'); add(9,11,'Diada'); add(9,24,'La Mercè');
+  add(10,12,'Festa Nacional'); add(11,1,'Tots Sants'); add(12,6,'Constitució');
+  add(12,8,'Immaculada'); add(12,25,'Nadal'); add(12,26,'Sant Esteve');
+  const e = easter(y), at = n => { const t = new Date(e); t.setDate(e.getDate() + n); return key(t.getFullYear(), t.getMonth(), t.getDate()); };
+  h[at(-2)] = 'Divendres Sant'; h[at(1)] = 'Dilluns de Pasqua';
+  return holCache[y] = h;
+}
+
+// ---------- Login per telèfon ----------
+const normTel = s => s.replace(/\D/g, '').slice(-9);
+async function login(raw, silent) {
+  const tel = normTel(raw);
+  if (tel.length < 9) return silent || ($('err').textContent = 'Escriu un telèfon de 9 xifres.');
+  try {
+    const doc = await db.collection('usuarios').doc(tel).get();
+    if (!doc.exists) { if (!silent) $('err').textContent = 'Aquest número no està autoritzat.'; return; }
+    const u = doc.data();
+    me = { tel, nom: u.nombre || tel, edit: u.rol === 'editor' };
+    localStorage.setItem('cg_tel', tel);
+    $('login').classList.add('hidden'); $('app').classList.remove('hidden');
+    $('who').textContent = `${me.nom} · ${me.edit ? 'edició' : 'lectura'}`;
+    unsub = db.collection('eventos').onSnapshot(s => {
+      events = s.docs.map(d => ({ id: d.id, ...d.data() })); render();
+    }, () => alert('No es poden carregar els events. Revisa la connexió.'));
+    render();
+  } catch (e) { if (!silent) $('err').textContent = 'Error de connexió.'; }
+}
+$('enter').onclick = () => login($('tel').value);
+$('tel').onkeydown = e => e.key === 'Enter' && login($('tel').value);
+$('out').onclick = () => { localStorage.removeItem('cg_tel'); unsub && unsub(); location.reload(); };
+if (localStorage.getItem('cg_tel')) login(localStorage.getItem('cg_tel'), true);
+
+// ---------- Calendari ----------
+const evsOf = k => events.filter(e => e.ini <= k && k <= e.fi).sort((a, b) => (a.hIni || '').localeCompare(b.hIni || ''));
+function render() {
+  const y = cur.getFullYear(), m = cur.getMonth(), hol = holidays(y);
+  $('title').textContent = `${MONTHS[m]} ${y}`;
+  const first = (new Date(y, m, 1).getDay() + 6) % 7, start = new Date(y, m, 1 - first);
+  const today = new Date(); const tk = key(today.getFullYear(), today.getMonth(), today.getDate());
+  let html = ['Dl','Dt','Dc','Dj','Dv','Ds','Dg'].map(d => `<div class="dh">${d}</div>`).join('');
+  for (let i = 0; i < 42; i++) {
+    const t = new Date(start); t.setDate(start.getDate() + i);
+    if (i >= 35 && t.getMonth() !== m) break;
+    const k = key(t.getFullYear(), t.getMonth(), t.getDate()), h = holidays(t.getFullYear())[k], ev = evsOf(k);
+    html += `<div class="d${t.getMonth() !== m ? ' out' : ''}${k === tk ? ' today' : ''}${h ? ' hol' : ''}${t.getDay() === 0 ? ' sun' : ''}" data-k="${k}">
+      <span class="n">${t.getDate()}</span>${h ? `<span class="hn">${esc(h)}</span>` : ''}
+      ${ev.slice(0, 3).map(e => `<span class="ev">${esc(e.titulo)}</span>`).join('')}
+      ${ev.length > 3 ? `<span class="more">+${ev.length - 3} més</span>` : ''}</div>`;
+  }
+  $('grid').innerHTML = html;
+}
+$('grid').onclick = e => { const d = e.target.closest('.d'); if (d) openDay(d.dataset.k); };
+$('prev').onclick = () => { cur.setMonth(cur.getMonth() - 1); render(); };
+$('next').onclick = () => { cur.setMonth(cur.getMonth() + 1); render(); };
+
+// ---------- Modal ----------
+const show = h => { $('box').innerHTML = h; $('modal').classList.remove('hidden'); };
+const close = () => $('modal').classList.add('hidden');
+$('modal').onclick = e => e.target.id === 'modal' && close();
+const fmtD = k => { const [y, m, d] = k.split('-'); return `${+d} de ${MONTHS[m - 1]} de ${y}`; };
+
+function openDay(k) {
+  const h = holidays(+k.slice(0, 4))[k], ev = evsOf(k);
+  show(`<h3>${fmtD(k)}</h3>
+    ${h ? `<div class="item h"><b>${esc(h)}</b><small>Festiu</small></div>` : ''}
+    ${ev.map(e => {
+      const hora = e.dia ? 'Tot el dia' : `${e.ini === e.fi ? '' : fmtD(e.ini) + ' '}${e.hIni || ''} – ${e.ini === e.fi ? '' : fmtD(e.fi) + ' '}${e.hFi || ''}`;
+      return `<div class="item"><b>${esc(e.titulo)}</b><small>${hora}</small>
+        ${e.desc ? `<div>${esc(e.desc)}</div>` : ''}
+        ${/^https?:\/\//i.test(e.lugar || '') ? `<a href="${esc(e.lugar)}" target="_blank" rel="noopener">📍 Veure ubicació</a>` : ''}
+        <small>Creat per ${esc(e.autor || '')}</small>
+        ${me.edit ? `<div class="acts"><button class="btn sec" data-ed="${e.id}">Editar</button><button class="btn del" data-del="${e.id}">Esborrar</button></div>` : ''}</div>`;
+    }).join('') || (h ? '' : '<p class="who">No hi ha events aquest dia.</p>')}
+    <div class="acts"><button class="btn sec" id="x">Tancar</button>${me.edit ? `<button class="btn" id="add">Nou event</button>` : ''}</div>`);
+  $('x').onclick = close;
+  if (me.edit) {
+    $('add').onclick = () => form(k);
+    $('box').querySelectorAll('[data-ed]').forEach(b => b.onclick = () => form(k, events.find(e => e.id === b.dataset.ed)));
+    $('box').querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+      if (confirm('Vols esborrar aquest event?')) { await db.collection('eventos').doc(b.dataset.del).delete(); openDay(k); }
+    });
+  }
+}
+
+function form(k, e) {
+  e = e || { titulo: '', desc: '', lugar: '', ini: k, fi: k, hIni: '09:00', hFi: '10:00', dia: false };
+  show(`<h3>${e.id ? 'Editar event' : 'Nou event'}</h3>
+    <label>Títol *</label><input id="f-t" value="${esc(e.titulo)}">
+    <label>Descripció</label><textarea id="f-d" rows="2">${esc(e.desc)}</textarea>
+    <label>Ubicació (enllaç de Google Maps)</label><input id="f-l" type="url" placeholder="https://maps.app.goo.gl/..." value="${esc(e.lugar)}">
+    <div class="row"><div><label>Data inici</label><input id="f-i" type="date" value="${e.ini}"></div><div><label>Hora inici</label><input id="f-hi" type="time" value="${e.hIni}"></div></div>
+    <div class="row"><div><label>Data fi</label><input id="f-f" type="date" value="${e.fi}"></div><div><label>Hora fi</label><input id="f-hf" type="time" value="${e.hFi}"></div></div>
+    <label style="display:flex;gap:8px;align-items:center;color:var(--ink)"><input id="f-a" type="checkbox" style="width:auto" ${e.dia ? 'checked' : ''}> Tot el dia</label>
+    <p id="err2" style="color:var(--red);margin:8px 0 0"></p>
+    <div class="acts"><button class="btn sec" id="c">Cancel·lar</button><button class="btn" id="s">Desar</button></div>`);
+  const allday = () => { const on = $('f-a').checked; if (on) { $('f-hi').value = '00:00'; $('f-hf').value = '23:59'; } $('f-hi').disabled = $('f-hf').disabled = on; };
+  $('f-a').onchange = allday; allday();
+  $('c').onclick = () => openDay(k);
+  $('s').onclick = async () => {
+    const d = { titulo: $('f-t').value.trim(), desc: $('f-d').value.trim(), lugar: $('f-l').value.trim(),
+      ini: $('f-i').value, fi: $('f-f').value, hIni: $('f-hi').value, hFi: $('f-hf').value, dia: $('f-a').checked };
+    const bad = !d.titulo ? 'El títol és obligatori.' : !d.ini || !d.fi ? 'Indica les dates.'
+      : (d.fi + d.hFi) < (d.ini + d.hIni) ? 'La fi no pot ser abans de l\'inici.'
+      : d.lugar && !/^https?:\/\//i.test(d.lugar) ? 'La ubicació ha de ser un enllaç que comenci per http.' : '';
+    if (bad) return $('err2').textContent = bad;
+    if (e.id) await db.collection('eventos').doc(e.id).update(d);
+    else await db.collection('eventos').add({ ...d, autor: me.nom, autorTel: me.tel });
+    openDay(d.ini);
+  };
+}
+</script>
+</body>
+</html>
